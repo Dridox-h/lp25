@@ -1,27 +1,12 @@
-# Variables
 CC = gcc
-CFLAGS = -Wall -g -I. -lssl -lcrypto   # Options de compilation
-SRC = main.c deduplication.c file_handler.c backup_manager.c network.c
+CFLAGS = -Wall -Wextra -I./src
+SRC = src/main.c src/file_handler.c src/deduplication.c src/backup_manager.c src/network.c
 OBJ = $(SRC:.c=.o)
-TARGET = backup_tool
 
-# Règle par défaut
-all: $(TARGET)
+all: lp25_borgbackup
 
-# Règle pour créer l'exécutable
-$(TARGET): $(OBJ)
-	$(CC) -o $@ $^
+cborgbackup: $(OBJ)
+    $(CC) -o $@ $^
 
-# Règle pour compiler les fichiers source en objets
-%.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-# Règle pour nettoyer les fichiers objets et l'exécutable
 clean:
-	rm -f $(OBJ) $(TARGET)
-
-# Règle pour exécuter le programme (optionnel)
-run: $(TARGET)
-	./$(TARGET)
-
-.PHONY: all clean run
+    rm -f $(OBJ) lp25_borgbackup
