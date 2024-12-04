@@ -72,7 +72,7 @@ void update_backup_log(const char *logfile, log_t *logs) {
 
 // Fonction permettant d'écrire un élément log_element dans le fichier
 void write_log_element(log_element *elt, FILE *file) {
-    char md5_hex[MD5_DIGEST_LENGTH * 2 + 1] = NULL;
+    char md5_hex[MD5_DIGEST_LENGTH * 2 + 1];
 
     if (!elt || !file) {
         return;
