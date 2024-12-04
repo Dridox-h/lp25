@@ -2,6 +2,7 @@
 #define FILE_HANDLER_H
 
 #include <stddef.h>
+#include <stdlib.h>
 
 void list_files(const char *path);
 char *read_file(const char *filepath, size_t *size);
