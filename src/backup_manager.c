@@ -113,20 +113,107 @@ void create_backup(const char *source_dir, const char *backup_dir) {
 
 // Fonction implémentant la logique pour la sauvegarde d'un fichier
 void backup_file(const char *filename) {
-    /*
-    */
-}
 
+    struct stat statbuf;
+    if (stat(filename, &statbuf) == -1) {
+        perror("Erreur lors de l'accès au fichier");
+        return;
+    }
+
+    // Vérifier que c'est un fichier régulier
+    if (!S_ISREG(statbuf.st_mode)) {
+        fprintf(stderr, "Le chemin spécifié n'est pas un fichier régulier : %s\n", filename);
+        return;
+    }
+
+    FILE *file = fopen(filename, "rb");
+    if (!file) {
+        perror("Erreur lors de l'ouverture du fichier");
+        return;
+    }
+
+    // Calculer la taille du fichier et le nombre de chunks nécessaires
+    size_t file_size = statbuf.st_size;
+    size_t chunk_count = (file_size + CHUNK_SIZE - 1) / CHUNK_SIZE;
+
+    // Allouer dynamiquement un tableau de chunks et une table de hachage
+    Chunk *chunks = malloc(chunk_count * sizeof(Chunk));
+    if (!chunks) {
+        perror("Erreur lors de l'allocation mémoire pour les chunks");
+        fclose(file);
+        return;
+    }
+    Md5Entry hash_table[HASH_TABLE_SIZE] = {0};
+
+    // Dédupliquer le fichier en remplissant le tableau de chunks
+    deduplicate_file(file, chunks, hash_table);
+
+    fclose(file);
+
+    // Générer un nom de fichier de sauvegarde basé sur l'heure actuelle
+    char backup_filename[256];
+    time_t now = time(NULL);
+    strftime(backup_filename, sizeof(backup_filename), "backup_%Y%m%d_%H%M%S.dat", localtime(&now));
+
+    write_backup_file(backup_filename, chunks, chunk_count);
+
+    // Libérer la mémoire allouée pour les chunks
+    for (size_t i = 0; i < chunk_count; ++i) {
+        free(chunks[i].data);
+    }
+    free(chunks);
+
+    printf("Sauvegarde terminée avec succès : %s\n", backup_filename);
+}
 
 // Fonction permettant la restauration du fichier backup via le tableau de chunk
 void write_restored_file(const char *output_filename, Chunk *chunks, int chunk_count) {
-    /*
-    */
+    FILE *output_file = fopen(output_filename, "wb");
+    if (!output_file) {
+        printf("Erreur lors de l'ouverture du fichier de sortie");
+    }
+
+    // Écrire chaque chunk dans le fichier de sortie
+    for (int i = 0; i < chunk_count; ++i) {
+        if (fwrite(chunks[i].data, 1, CHUNK_SIZE, output_file) != CHUNK_SIZE) {
+            printf("Erreur lors de l'écriture dans le fichier de sortie");
+            fclose(output_file);
+        }
+    }
+
+    fclose(output_file);
+    printf("Fichier restauré avec succès : %s\n", output_filename);
 }
 
 // Fonction pour restaurer une sauvegarde
 void restore_backup(const char *backup_id, const char *restore_dir) {
-    /* @param: backup_id est le chemin vers le répertoire de la sauvegarde que l'on veut restaurer
-    *          restore_dir est le répertoire de destination de la restauration
-    */
+    // Construire le chemin complet vers le fichier de sauvegarde
+    char backup_filepath[256];
+    snprintf(backup_filepath, sizeof(backup_filepath), "%s/%s", restore_dir, backup_id);
+
+    FILE *backup_file = fopen(backup_filepath, "rb");
+    if (!backup_file) {
+        printf("Erreur lors de l'ouverture du fichier de sauvegarde");
+    }
+
+    Chunk *chunks = NULL;
+    int chunk_count = 0;
+    undeduplicate_file(backup_file, &chunks, &chunk_count);
+
+    fclose(backup_file);
+
+    // Construire un chemin pour le fichier restauré
+    char restored_filepath[256];
+    snprintf(restored_filepath, sizeof(restored_filepath), "%s/restored_file.dat", restore_dir);
+
+    // Restaurer le fichier à partir des chunks
+    write_restored_file(restored_filepath, chunks, chunk_count);
+
+    // Libérer la mémoire allouée pour les chunks
+    for (int i = 0; i < chunk_count; ++i) {
+        free(chunks[i].data);
+    }
+    free(chunks);
+
+    printf("Restauration terminée avec succès dans : %s\n", restore_dir);
 }
