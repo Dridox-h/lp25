@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Variables
 CC = gcc                            # Compiler to use
 CFLAGS = -Wall -g -I"C:\Program Files\OpenSSL-Win64\include"
@@ -26,3 +27,17 @@ run: $(TARGET)
 	./$(TARGET)
 
 .PHONY: all clean run
+=======
+CC = gcc
+CFLAGS = -Wall -Wextra -I./src
+SRC = src/main.c src/file_handler.c src/deduplication.c src/backup_manager.c src/network.c
+OBJ = $(SRC:.c=.o)
+
+all: lp25_borgbackup
+
+cborgbackup: $(OBJ)
+    $(CC) -o $@ $^
+
+clean:
+    rm -f $(OBJ) lp25_borgbackup
+>>>>>>> backup-manager
