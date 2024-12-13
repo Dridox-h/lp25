@@ -21,7 +21,7 @@ void create_backup(const char *source_dir, const char *backup_dir) {
     dir = opendir(source_dir);
     if (dir != NULL) {
         // Créer le répertoire de sauvegarde s'il n'existe pas
-        if (mkdir(backup_dir) != -1 ) {
+        if (mkdir(backup_dir, 0755) != -1 ) {
             // Initialiser la table de hachage pour gérer la déduplication
             Md5Entry hash_table[HASH_TABLE_SIZE] = {0};
             Chunk chunks[10000]; // Un tableau pour les chunks 
@@ -116,7 +116,7 @@ void backup_file(const char *filename) {
     struct stat statbuf;
     if (stat(filename, &statbuf) != -1) {
         // Vérifier que c'est un fichier régulier
-        if (_ISREG(statbuf.st_mode)) {
+        if (S_ISREG(statbuf.st_mode)) {
             FILE *file = fopen(filename, "rb");
             if (file) {        
                 // Calculer la taille du fichier et le nombre de chunks nécessaires
@@ -159,7 +159,7 @@ void backup_file(const char *filename) {
             }
         }
         else{
-            fprintf("Le chemin spécifié n'est pas un fichier régulier : %s\n", filename);
+            printf("Le chemin spécifié n'est pas un fichier régulier : %s\n", filename);
         }
     }
     else{

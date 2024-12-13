@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "file_handler.h"
 #include "deduplication.h"
 #include "backup_manager.h"
@@ -87,25 +88,80 @@ int main(int argc, char *argv[]) {
     }
 
     // Résumé des options analysées (si nécessaire pour débogage ou confirmation)
-    if (backup_flag) {
-        printf("Option sélectionnée : --backup\n");
-    } else if (restore_flag) {
-        printf("Option sélectionnée : --restore\n");
-    } else if (list_flag) {
-        printf("Option sélectionnée : --list-backups\n");
-    } else {
-        fprintf(stderr, "Erreur : aucune option principale (--backup, --restore, --list-backups) n'a été spécifiée.\n");
-        return EXIT_FAILURE;
+    if (verbose) {
+        if (backup_flag) {
+            printf("Option sélectionnée : --backup\n");
+        } else if (restore_flag) {
+            printf("Option sélectionnée : --restore\n");
+        } else if (list_flag) {
+            printf("Option sélectionnée : --list-backups\n");
+        } else {
+            fprintf(stderr, "Erreur : aucune option principale (--backup, --restore, --list-backups) n'a été spécifiée.\n");
+            return EXIT_FAILURE;
+        }
+
+        if (source) printf("Chemin source : %s\n", source);
+        if (destination) printf("Chemin destination : %s\n", destination);
+        if (d_server) printf("Serveur de destination : %s\n", d_server);
+        if (d_port) printf("Port de destination : %d\n", d_port);
+        if (s_server) printf("Serveur source : %s\n", s_server);
+        if (s_port) printf("Port source : %d\n", s_port);
+        if (dry_run) printf("Mode simulation activé (--dry-run).\n");
     }
 
-    if (source) printf("Chemin source : %s\n", source);
-    if (destination) printf("Chemin destination : %s\n", destination);
-    if (d_server) printf("Serveur de destination : %s\n", d_server);
-    if (d_port) printf("Port de destination : %d\n", d_port);
-    if (s_server) printf("Serveur source : %s\n", s_server);
-    if (s_port) printf("Port source : %d\n", s_port);
-    if (dry_run) printf("Mode simulation activé (--dry-run).\n");
-    if (verbose) printf("Mode verbose activé (--verbose).\n");
+    // Exécution en fonction de l'option choisie
+    if (backup_flag) {
+        // Créer un backup local ou distant
+        if (d_server) {
+            // Sauvegarde distante via réseau
+            if (dry_run) {
+                printf("Mode simulation activé, pas de transfert.\n");
+            } else {
+                // Sauvegarde distante
+                printf("Sauvegarde vers le serveur distant %s:%d\n", d_server, d_port);
+                send_data(d_server, d_port, source, strlen(source)); // Sauvegarde distante
+            }
+        } else {
+            // Sauvegarde locale
+            if (dry_run) {
+                printf("Mode simulation activé, pas de sauvegarde réelle.\n");
+            } else {
+                create_backup(source, destination); // Sauvegarde locale
+                printf("Sauvegarde locale effectuée.\n");
+            }
+        }
+    }
+
+    if (restore_flag) {
+        // Restaurer un backup local ou distant
+        if (s_server) {
+            // Restauration distante via réseau
+            if (dry_run) {
+                printf("Mode simulation activé, pas de récupération.\n");
+            } else {
+                // Restaurer depuis le serveur distant
+                printf("Restauration depuis le serveur distant %s:%d\n", s_server, s_port);
+                receive_data(s_port); // Restauration distante
+            }
+        } else {
+            // Restauration locale
+            if (dry_run) {
+                printf("Mode simulation activé, pas de restauration réelle.\n");
+            } else {
+                restore_backup(source, destination); // Restauration locale
+                printf("Restauration locale effectuée.\n");
+            }
+        }
+    }
+
+    if (list_flag) {
+        // Lister les sauvegardes disponibles
+        if (dry_run) {
+            printf("Mode simulation activé, pas de listing réel.\n");
+        } else {
+            list_backups(destination); // Lister les sauvegardes
+        }
+    }
 
     return EXIT_SUCCESS;
 }

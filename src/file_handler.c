@@ -1,74 +1,110 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <dirent.h>
 #include "file_handler.h"
+#include "deduplication.h"
 
+// Fonction permettant de lire le fichier .backup_log et de charger son contenu dans une structure log_t
+log_t read_backup_log(const char *logfile) {
+    log_t logs = { .head = NULL, .tail = NULL };
+    char line[512];
+    FILE *file = fopen(logfile, "r");
+
+    if (!file) {
+        perror("Erreur d'ouverture du fichier .backup_log");
+        return logs; // Retourne une liste vide en cas d'erreur
+    }
+
+    while (fgets(line, sizeof(line), file)) {
+        // Crée un nouvel élément log_element
+        log_element *new_elt = malloc(sizeof(log_element));
+        if (!new_elt) {
+            perror("Erreur d'allocation mémoire pour log_element");
+            fclose(file);
+            return logs;
+        }
+
+        // Découpe la ligne lue en composants : chemin, hachage MD5, date
+        char *token = strtok(line, " ");
+        new_elt->path = strdup(token); // Chemin
+
+        token = strtok(NULL, " ");
+        for (int i = 0; i < MD5_DIGEST_LENGTH; ++i) {
+            sscanf(token + i * 2, "%2hhx", &new_elt->md5[i]); // Hachage MD5
+        }
+
+        token = strtok(NULL, "\n");
+        new_elt->date = strdup(token); // Date
+
+        // Ajoute le nouvel élément à la liste chaînée
+        new_elt->next = NULL;
+        new_elt->prev = logs.tail;
+        if (logs.tail) {
+            logs.tail->next = new_elt;
+        } else {
+            logs.head = new_elt; // Premier élément
+        }
+        logs.tail = new_elt; // Met à jour le dernier élément
+    }
+
+    fclose(file);
+    return logs;
+}
+
+// Fonction permettant de mettre à jour le fichier .backup_log avec le contenu de log_t
+void update_backup_log(const char *logfile, log_t *logs) {
+    FILE *file = fopen(logfile, "w");
+    if (!file) {
+        perror("Erreur d'ouverture du fichier .backup_log pour mise à jour");
+        return;
+    }
+
+    // Parcourt la liste chaînée et écrit chaque élément dans le fichier
+    log_element *current = logs->head;
+    while (current) {
+        write_log_element(current, file);
+        current = current->next;
+    }
+
+    fclose(file);
+}
+
+// Fonction permettant d'écrire un élément log_element dans le fichier
+void write_log_element(log_element *elt, FILE *file) {
+    char md5_hex[MD5_DIGEST_LENGTH * 2 + 1];
+
+    if (!elt || !file) {
+        return;
+    }
+
+    // Convertit le hachage MD5 en chaîne hexadécimale
+    for (int i = 0; i < MD5_DIGEST_LENGTH; ++i) {
+        sprintf(md5_hex + i * 2, "%02x", elt->md5[i]);
+    }
+
+    // Écrit l'élément dans le fichier
+    fprintf(file, "%s %s %s\n", elt->path, md5_hex, elt->date);
+}
+
+// Fonction pour lister les fichiers dans un répertoire (non récursif)
 void list_files(const char *path) {
-    // Implémenter la logique pour lister les fichiers dans le répertoire donné
-    DIR *dir;
     struct dirent *entry;
+    DIR *dir = opendir(path);
 
-    dir = opendir(path);
-    if (dir == NULL) {
+    if (!dir) {
         perror("Erreur lors de l'ouverture du répertoire");
         return;
     }
 
-    printf("Fichiers dans le répertoire %s :\n", path);
-    while ((entry = readdir(dir)) != NULL) {
-        if (entry->d_type == DT_REG) { // Vérifie si c'est un fichier régulier
-            printf("  %s\n", entry->d_name);
+    while ((entry = readdir(dir))) {
+        // Ignore les entrées spéciales "." et ".."
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
         }
+
+        printf("%s/%s\n", path, entry->d_name); // Affiche le chemin complet
     }
 
     closedir(dir);
-}
-
-void read_file(const char *filepath) {
-    // Implémenter la logique pour lire un fichier
-    FILE *file;
-    char *buffer;
-    long file_size;
-
-    file = fopen(filepath, "rb");
-    if (file == NULL) {
-        perror("Erreur lors de l'ouverture du fichier");
-        return;
-    }
-
-    fseek(file, 0, SEEK_END);
-    file_size = ftell(file);
-    rewind(file);
-
-    buffer = malloc(file_size + 1);
-    if (buffer == NULL) {
-        perror("Erreur d'allocation mémoire");
-        fclose(file);
-        return;
-    }
-
-    fread(buffer, 1, file_size, file);
-    buffer[file_size] = '\0';
-
-    printf("Contenu du fichier %s :\n%s\n", filepath, buffer);
-
-    free(buffer);
-    fclose(file);
-}
-
-void write_file(const char *filepath, const void *data, size_t size) {
-    // Implémenter la logique pour écrire des données dans un fichier
-    FILE *file;
-
-    file = fopen(filepath, "wb");
-    if (file == NULL) {
-        perror("Erreur lors de l'ouverture du fichier");
-        return;
-    }
-
-    if (fwrite(data, 1, size, file) != size) {
-        perror("Erreur lors de l'écriture dans le fichier");
-    } else {
-        printf("Les données ont été écrites dans le fichier %s avec succès.\n", filepath);
-    }
-
-    fclose(file);
 }
