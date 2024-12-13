@@ -87,3 +87,25 @@ void deduplicate_file(FILE *file, Chunk *chunks, Md5Entry *hash_table) {
         }
     }
 }
+
+void undeduplicate_file(FILE *backup_file, Chunk **chunks, int *chunk_count) {
+    // Exemple d'implémentation simple qui lit les chunks depuis le fichier de sauvegarde
+
+    *chunk_count = 0;
+    *chunks = malloc(1000 * sizeof(Chunk)); // Allouer de l'espace pour 1000 chunks (exemple)
+
+    while (!feof(backup_file)) {
+        Chunk *chunk = &((*chunks)[*chunk_count]);
+
+        // Lire le MD5 et les données du chunk (exemple simplifié)
+        fread(chunk->md5, 1, MD5_DIGEST_LENGTH, backup_file);
+        chunk->data = malloc(CHUNK_SIZE);
+        size_t read_size = fread(chunk->data, 1, CHUNK_SIZE, backup_file);
+
+        if (read_size > 0) {
+            (*chunk_count)++;
+        } else {
+            free(chunk->data);
+        }
+    }
+}
