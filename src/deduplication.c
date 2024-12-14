@@ -66,28 +66,35 @@ void deduplicate_file(FILE *file, Chunk *chunks, Md5Entry *hash_table, int *chun
     }
 
     while (!feof(file)) {
-        size_t bytes_read = fread(buffer, 1, CHUNK_SIZE, file);
-        if (bytes_read == 0) break;
+    size_t bytes_read = fread(buffer, 1, CHUNK_SIZE, file);
+    
+    // Si rien n'est lu, on sort de la boucle
+    if (bytes_read == 0) break;
 
-        unsigned char md5[MD5_DIGEST_LENGTH];
-        compute_md5(buffer, bytes_read, md5);
+    unsigned char md5[MD5_DIGEST_LENGTH];
+    compute_md5(buffer, bytes_read, md5);
 
-        // Recherche si le chunk existe déjà
-        int existing_index = find_md5(hash_table, md5);
-        if (existing_index == -1) {
-            add_md5(hash_table, md5, *chunk_count);
+    // Recherche si le chunk existe déjà dans la table de hachage
+    int existing_index = find_md5(hash_table, md5);
+    if (existing_index == -1) {
+        // Ajouter le MD5 à la table de hachage
+        add_md5(hash_table, md5, *chunk_count);
 
-            chunks[*chunk_count].data = malloc(bytes_read);
-            if (chunks[*chunk_count].data == NULL) {
-                fprintf(stderr, "Memory allocation error\n");
-                exit(EXIT_FAILURE);
-            }
-            memcpy(chunks[*chunk_count].data, buffer, bytes_read);
-            memcpy(chunks[*chunk_count].md5, md5, MD5_DIGEST_LENGTH);
-
-            (*chunk_count)++;
+        // Allouer de la mémoire pour les données lues
+        chunks[*chunk_count].data = malloc(bytes_read);
+        if (chunks[*chunk_count].data == NULL) {
+            fprintf(stderr, "Memory allocation error\n");
+            exit(EXIT_FAILURE);
         }
+
+        // Copier les données lues dans le chunk
+        memcpy(chunks[*chunk_count].data, buffer, bytes_read);
+        // Copier le MD5 du chunk
+        memcpy(chunks[*chunk_count].md5, md5, MD5_DIGEST_LENGTH);
+
+        (*chunk_count)++;
     }
+}
 }
 
 void undeduplicate_file(FILE *backup_file, Chunk **chunks, int *chunk_count) {

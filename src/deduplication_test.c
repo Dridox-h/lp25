@@ -4,59 +4,79 @@
 #include <string.h>
 #include <assert.h>
 
-#define MAX_CHUNKS 100
+#define MAX_CHUNKS 1000000
 
-void test_compute_md5() {
-    char data[] = "Test MD5 Data";
-    unsigned char md5_result[MD5_DIGEST_LENGTH];
-
-    compute_md5(data, strlen(data), md5_result);
-
-    printf("MD5 Test PASSED\n");
-}
-
-void test_deduplication() {
-    FILE *file = fopen("test_file.txt", "w+");
+void create_original_file() {
+    FILE *file = fopen("original_file.txt", "wb");  // Mode binaire pour écriture
     if (!file) {
-        fprintf(stderr, "Error opening file\n");
+        fprintf(stderr, "Error opening original file\n");
         exit(EXIT_FAILURE);
     }
 
     // Créer un fichier avec des données répétées
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 5; i++) {
         fwrite("HelloWorldChunk", 1, 16, file);
     }
-    rewind(file);
 
+    fclose(file);
+    printf("Original file created\n");
+}
+
+void test_deduplication_and_save() {
+    FILE *file = fopen("original_file.txt", "rb");  // Mode binaire pour lecture
+    if (!file) {
+        fprintf(stderr, "Error opening original file for deduplication\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // Variables pour déduplication
     Chunk chunks[MAX_CHUNKS];
     Md5Entry hash_table[HASH_TABLE_SIZE];
     int chunk_count = 0;
-    
-    // Test de la déduplication
+
+    // Appliquer la déduplication
     deduplicate_file(file, chunks, hash_table, &chunk_count);
-    
+
     // Vérifier que la déduplication a bien fonctionné (devrait seulement y avoir 1 chunk unique)
     assert(chunk_count == 1);
     printf("Deduplication Test PASSED\n");
 
     fclose(file);
-}
 
-void test_undeduplication() {
-    FILE *file = fopen("test_file.txt", "r");
+    // Sauvegarder les chunks dans un fichier dupliqué
+    file = fopen("duplicated_file.txt", "wb");  // Mode binaire pour écriture
     if (!file) {
-        fprintf(stderr, "Error opening file for undeduplication\n");
+        fprintf(stderr, "Error opening duplicated file\n");
         exit(EXIT_FAILURE);
     }
 
+    // Écrire les chunks dans le fichier dupliqué
+    for (int i = 0; i < chunk_count; i++) {
+        fwrite(chunks[i].md5, 1, MD5_DIGEST_LENGTH, file);  // Écrire le MD5
+        fwrite(chunks[i].data, 1, 16, file);  // Assumer que chaque chunk fait 16 octets
+    }
+
+    fclose(file);
+    printf("Duplicated file created\n");
+}
+
+void test_undeduplication() {
+    FILE *file = fopen("duplicated_file.txt", "rb");  // Mode binaire pour lecture
+    if (!file) {
+        fprintf(stderr, "Error opening duplicated file for undeduplication\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // Variables pour la gestion des chunks
     Chunk *chunks = NULL;
     int chunk_count = 0;
-    
-    // Test de la fonction pour undédupliquer
+
+    // Appliquer l'undéduplication
     undeduplicate_file(file, &chunks, &chunk_count);
 
-    // Vérification que nous avons bien lu tous les chunks
-    printf("Undeduplication Test: Total chunks read: %d\n", chunk_count);
+    // Vérifier que nous avons bien lu un chunk unique
+    assert(chunk_count == 1);  // Il devrait y avoir un seul chunk après undéduplication
+    printf("Undeduplication Test PASSED: Total chunks read: %d\n", chunk_count);
 
     // Libérer la mémoire
     for (int i = 0; i < chunk_count; i++) {
@@ -69,9 +89,14 @@ void test_undeduplication() {
 int main() {
     printf("Running Tests...\n");
 
-    test_compute_md5();      // Test du calcul MD5
-    test_deduplication();    // Test de la déduplication
-    test_undeduplication();  // Test de l'undéduplication
+    // 1. Créer un fichier original
+    create_original_file();
+
+    // 2. Appliquer la déduplication et créer le fichier dupliqué
+    test_deduplication_and_save();
+
+    // 3. Appliquer l'undéduplication sur le fichier dupliqué
+    test_undeduplication();
 
     printf("All Tests PASSED\n");
     return 0;
