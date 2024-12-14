@@ -55,7 +55,13 @@ void test_restore_backup() {
     printf("\n--- Test: restore_backup() ---\n");
 
     mkdir(RESTORE_DIR, 0755);
-    restore_backup("file1.txt.metadata", RESTORE_DIR);
+
+    // Construire le chemin complet vers le fichier de sauvegarde
+    char backup_file_path[256];
+    snprintf(backup_file_path, sizeof(backup_file_path), "%s/%s", BACKUP_DIR, "file1.txt.metadata");
+
+    // Appeler restore_backup avec le chemin correct
+    restore_backup(backup_file_path, RESTORE_DIR);
 
     // Vérifie si le fichier a été restauré
     struct stat statbuf;
@@ -63,6 +69,7 @@ void test_restore_backup() {
 
     printf("Test restore_backup() : OK\n");
 }
+
 
 // Fonction principale pour exécuter tous les tests
 int main() {

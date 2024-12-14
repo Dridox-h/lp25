@@ -56,10 +56,11 @@ void add_md5(Md5Entry *hash_table, unsigned char *md5, int index) {
 }
 
 // Fonction pour convertir un fichier non dédupliqué en tableau de chunks
-void deduplicate_file(FILE *file, Chunk *chunks, Md5Entry *hash_table) {
+void deduplicate_file(FILE *file, Chunk *chunks, Md5Entry *hash_table, int *chunk_count) {
     unsigned char buffer[CHUNK_SIZE];
-    int chunk_count = 0;
+    *chunk_count = 0;
 
+    // Initialisation de la table de hachage
     for (int i = 0; i < HASH_TABLE_SIZE; i++) {
         hash_table[i].index = -1;
     }
@@ -71,26 +72,25 @@ void deduplicate_file(FILE *file, Chunk *chunks, Md5Entry *hash_table) {
         unsigned char md5[MD5_DIGEST_LENGTH];
         compute_md5(buffer, bytes_read, md5);
 
+        // Recherche si le chunk existe déjà
         int existing_index = find_md5(hash_table, md5);
         if (existing_index == -1) {
-            add_md5(hash_table, md5, chunk_count);
+            add_md5(hash_table, md5, *chunk_count);
 
-            chunks[chunk_count].data = malloc(bytes_read);
-            if (chunks[chunk_count].data == NULL) {
+            chunks[*chunk_count].data = malloc(bytes_read);
+            if (chunks[*chunk_count].data == NULL) {
                 fprintf(stderr, "Memory allocation error\n");
                 exit(EXIT_FAILURE);
             }
-            memcpy(chunks[chunk_count].data, buffer, bytes_read);
-            memcpy(chunks[chunk_count].md5, md5, MD5_DIGEST_LENGTH);
+            memcpy(chunks[*chunk_count].data, buffer, bytes_read);
+            memcpy(chunks[*chunk_count].md5, md5, MD5_DIGEST_LENGTH);
 
-            chunk_count++;
+            (*chunk_count)++;
         }
     }
 }
 
 void undeduplicate_file(FILE *backup_file, Chunk **chunks, int *chunk_count) {
-    // Exemple d'implémentation simple qui lit les chunks depuis le fichier de sauvegarde
-
     *chunk_count = 0;
     *chunks = malloc(1000 * sizeof(Chunk)); // Allouer de l'espace pour 1000 chunks (exemple)
 

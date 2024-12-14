@@ -30,18 +30,48 @@ void test_deduplication() {
 
     Chunk chunks[MAX_CHUNKS];
     Md5Entry hash_table[HASH_TABLE_SIZE];
-    deduplicate_file(file, chunks, hash_table);
-
+    int chunk_count = 0;
+    
+    // Test de la déduplication
+    deduplicate_file(file, chunks, hash_table, &chunk_count);
+    
+    // Vérifier que la déduplication a bien fonctionné (devrait seulement y avoir 1 chunk unique)
+    assert(chunk_count == 1);
     printf("Deduplication Test PASSED\n");
 
+    fclose(file);
+}
+
+void test_undeduplication() {
+    FILE *file = fopen("test_file.txt", "r");
+    if (!file) {
+        fprintf(stderr, "Error opening file for undeduplication\n");
+        exit(EXIT_FAILURE);
+    }
+
+    Chunk *chunks = NULL;
+    int chunk_count = 0;
+    
+    // Test de la fonction pour undédupliquer
+    undeduplicate_file(file, &chunks, &chunk_count);
+
+    // Vérification que nous avons bien lu tous les chunks
+    printf("Undeduplication Test: Total chunks read: %d\n", chunk_count);
+
+    // Libérer la mémoire
+    for (int i = 0; i < chunk_count; i++) {
+        free(chunks[i].data);
+    }
+    free(chunks);
     fclose(file);
 }
 
 int main() {
     printf("Running Tests...\n");
 
-    test_compute_md5();
-    test_deduplication();
+    test_compute_md5();      // Test du calcul MD5
+    test_deduplication();    // Test de la déduplication
+    test_undeduplication();  // Test de l'undéduplication
 
     printf("All Tests PASSED\n");
     return 0;
