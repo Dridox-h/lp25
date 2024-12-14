@@ -60,7 +60,7 @@ void create_backup(const char *source_dir, const char *backup_dir) {
                 }
 
                 // Effectuer la déduplication du fichier et ajouter les chunks
-                deduplicate_file(source_file, chunks, hash_table);
+                deduplicate_file(source_file, chunks, hash_table, &chunk_count); // Ajout du &chunk_count
 
                 fclose(source_file);
 
@@ -78,6 +78,7 @@ void create_backup(const char *source_dir, const char *backup_dir) {
         printf("Erreur lors de l'ouverture du répertoire source : %s\n", source_dir);
     }
 }
+
 
 // Fonction permettant d'enregistrer dans fichier le tableau de chunk dédupliqué
 void write_backup_file(const char *output_filename, Chunk *chunks, int chunk_count) {
@@ -140,7 +141,7 @@ void restore_backup(const char *backup_id, const char *restore_dir) {
     if (backup_file) {
         Chunk *chunks = NULL;
         int chunk_count = 0;
-        undeduplicate_file(backup_file, &chunks, &chunk_count);
+        undeduplicate_file(backup_file, &chunks, &chunk_count);  // Assurez-vous que la déduplication est correcte
 
         fclose(backup_file);
 
@@ -149,7 +150,7 @@ void restore_backup(const char *backup_id, const char *restore_dir) {
         snprintf(restored_filepath, sizeof(restored_filepath), "%s/restored_file.dat", restore_dir);
 
         // Restaurer le fichier à partir des chunks
-        write_restored_file(restored_filepath, chunks, chunk_count);
+        write_restored_file(restored_filepath, chunks, chunk_count);  // Assurez-vous que cette fonction écrit correctement
 
         // Libérer la mémoire allouée pour les chunks
         for (int i = 0; i < chunk_count; ++i) {
