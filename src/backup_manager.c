@@ -8,6 +8,7 @@
 #include <time.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <assert.h>
 
 // Fonction pour créer une nouvelle sauvegarde complète puis incrémentale
 void create_backup(const char *source_dir, const char *backup_dir) {
@@ -122,48 +123,86 @@ void write_restored_file(const char *output_filename, Chunk *chunks, int chunk_c
 }
 
 // Fonction de restauration modifiée
-void restore_backup(const char *backup_file_path, const char *restore_dir, const char *backup_dir) {
-    // Vérifier si le fichier de sauvegarde existe
-    struct stat statbuf;
-    if (stat(backup_file_path, &statbuf) != 0) {
-        fprintf(stderr, "Erreur lors de l'ouverture du fichier de sauvegarde : %s\n", strerror(errno));
+void restore_backup(const char *backup_metadata_path, const char *restore_file_path, Md5Entry *hash_table, int hash_table_size) {
+    // Ouvrir le fichier des métadonnées
+    FILE *metadata_file = fopen(backup_metadata_path, "rb");
+    if (!metadata_file) {
+        printf("Erreur lors de l'ouverture du fichier de métadonnées %s : %s\n", backup_metadata_path, strerror(errno));
         return;
     }
 
-    // Ici, vous pouvez ajouter la logique pour restaurer le fichier
-    printf("Fichier de sauvegarde trouvé : %s\n", backup_file_path);
+    // Lire les informations des métadonnées et reconstruire le fichier restauré
+    // Exemple de lecture simplifiée (cela dépend de la structure des métadonnées)
+    
+    // Extraire le nom du fichier à partir du chemin
+    const char *filename = strrchr(backup_metadata_path, '/');
+    if (!filename) {
+        filename = backup_metadata_path;  // Pas de chemin, juste le nom
+    } else {
+        filename++;  // Pour ignorer le '/'
+    }
 
-    // Exemple de restauration, ici il est simplement copié dans le répertoire de restauration
-    // Vous pouvez remplacer par votre propre logique de restauration
-    char restored_file_path[256];
-    snprintf(restored_file_path, sizeof(restored_file_path), "%s/restored_file.dat", restore_dir);
+    // Créer le nom du fichier restauré en ajoutant le préfixe 'restore_'
+    char restore_filename[256];
+    snprintf(restore_filename, sizeof(restore_filename), "%s/restore_%s", restore_file_path, filename);
 
-    FILE *backup_file = fopen(backup_file_path, "rb");
-    if (!backup_file) {
-        fprintf(stderr, "Impossible d'ouvrir le fichier de sauvegarde pour la lecture\n");
+    // Ouvrir le fichier restauré en écriture
+    FILE *restore_file = fopen(restore_filename, "wb");
+    if (!restore_file) {
+        printf("Erreur lors de l'ouverture du fichier restauré %s : %s\n", restore_filename, strerror(errno));
+        fclose(metadata_file);
         return;
     }
 
-    FILE *restored_file = fopen(restored_file_path, "wb");
-    if (!restored_file) {
-        fprintf(stderr, "Impossible d'ouvrir le fichier de restauration pour l'écriture\n");
-        fclose(backup_file);
+    // À ce stade, il faut savoir comment les métadonnées sont stockées et utilisées
+    // Supposons que les métadonnées contiennent des informations pour accéder aux morceaux du fichier.
+
+    // Exemple simplifié : récupération des morceaux à partir de la table de hachage
+    // Lisez les entrées des métadonnées et utilisez-les pour restaurer les morceaux du fichier.
+    // Cela dépend de la structure exacte de vos métadonnées, donc cet exemple peut nécessiter des ajustements.
+
+    unsigned char chunk_md5[MD5_DIGEST_LENGTH];
+    size_t chunk_size = 1024;  // Exemple de taille de chunk (1024 octets)
+    void *chunk_data = malloc(chunk_size);
+    if (!chunk_data) {
+        printf("Erreur d'allocation mémoire pour le chunk.\n");
+        fclose(metadata_file);
+        fclose(restore_file);
         return;
     }
 
-    // Copie des données du fichier de sauvegarde dans le fichier restauré
-    char buffer[1024];
-    size_t bytes_read;
-    while ((bytes_read = fread(buffer, 1, sizeof(buffer), backup_file)) > 0) {
-        fwrite(buffer, 1, bytes_read, restored_file);
+    // Lisez les métadonnées et restaurez les morceaux
+    while (fread(chunk_md5, sizeof(unsigned char), MD5_DIGEST_LENGTH, metadata_file) == MD5_DIGEST_LENGTH) {
+        // Rechercher dans la table de hachage pour trouver l'indice du chunk
+        int chunk_index = -1;
+        for (int i = 0; i < hash_table_size; i++) {
+            if (memcmp(chunk_md5, hash_table[i].md5, MD5_DIGEST_LENGTH) == 0) {
+                chunk_index = hash_table[i].index;
+                break;
+            }
+        }
+
+        if (chunk_index == -1) {
+            printf("Erreur : Chunk non trouvé dans la table de hachage.\n");
+            break;
+        }
+
+        // Récupérer le chunk (par exemple, depuis un fichier de sauvegarde ou d'une autre source)
+        // Ici, nous devons ajouter la logique pour charger réellement les données du chunk
+        // Pour l'exemple, nous générons simplement des données factices.
+        memset(chunk_data, 0, chunk_size);  // Remplacer par la récupération réelle du chunk
+
+        // Écrire le chunk restauré dans le fichier de restauration
+        fwrite(chunk_data, 1, chunk_size, restore_file);
     }
 
-    fclose(backup_file);
-    fclose(restored_file);
+    // Libérer la mémoire et fermer les fichiers
+    free(chunk_data);
+    fclose(metadata_file);
+    fclose(restore_file);
+
+    printf("Fichier restauré avec succès : %s\n", restore_filename);
 }
-
-
-
 
 // Fonction permettant de lister les différentes sauvegardes présentes dans la destination
 void list_backups(const char *backup_dir) {

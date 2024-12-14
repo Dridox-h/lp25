@@ -10,10 +10,11 @@
 #include <time.h>
 #include <sys/stat.h>
 
+
 // Fonction pour créer un nouveau backup incrémental
 void create_backup(const char *source_dir, const char *backup_dir);
 // Fonction pour restaurer une sauvegarde
-void restore_backup(const char *backup_id, const char *restore_dir, const char *backup_dir);
+void restore_backup(const char *backup_metadata_path, const char *restore_file_path, Md5Entry *hash_table, int hash_table_size);
 // Fonction permettant la restauration du fichier backup via le tableau de chunk
 void write_backup_file(const char *output_filename, Chunk *chunks, int chunk_count);
 // Fonction pour la sauvegarde de fichier dédupliqué
