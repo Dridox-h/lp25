@@ -32,7 +32,7 @@ void create_backup(const char *source_dir, const char *backup_dir) {
 
         // Initialiser la table de hachage pour gérer la déduplication
         Md5Entry hash_table[HASH_TABLE_SIZE] = {0};
-        Chunk chunks[10000]; // Un tableau pour les chunks 
+        Chunk chunks[10000]; // Un tableau pour les chunks
         int chunk_count = 0;
 
         // Parcourir tous les fichiers dans le répertoire source
@@ -82,38 +82,28 @@ void create_backup(const char *source_dir, const char *backup_dir) {
 
 // Fonction permettant d'enregistrer dans fichier le tableau de chunk dédupliqué
 void write_backup_file(const char *output_filename, Chunk *chunks, int chunk_count) {
-    /*
-    * Paramètres :
-    *   output_filename: fichier où enregistrer les données de la sauvegarde.
-    *   chunks: tableau de chunks représentant les blocs dédupliqués des fichiers sauvegardés.
-    *   chunk_count: le nombre de chunks dans le tableau.
-    */
-
     FILE *output_file = fopen(output_filename, "w");
     if (output_file != NULL) {
-        // Pour chaque chunk, on écrit son MD5 et le chemin du fichier associé dans le fichier
+        printf("Écriture du fichier de sauvegarde: %s\n", output_filename);  // Ajouter un log pour vérifier
         for (int i = 0; i < chunk_count; i++) {
-            // Convertir le MD5 en chaîne hexadécimale pour l'afficher dans le fichier
             char md5_str[MD5_DIGEST_LENGTH * 2 + 1];
             for (int j = 0; j < MD5_DIGEST_LENGTH; j++) {
                 sprintf(&md5_str[j * 2], "%02x", chunks[i].md5[j]);
             }
-            // Enregistrer les informations dans le fichier : chemin du fichier et MD5
             fprintf(output_file, "Chunk %d: MD5: %s\n", i, md5_str);
         }
+        fclose(output_file);
+        printf("Sauvegarde écrite dans le fichier : %s\n", output_filename);  // Ajouter un log pour confirmer la fin
     }
     else {
         printf("Erreur lors de l'ouverture du fichier de sauvegarde : %s\n", output_filename);
     }
-    fclose(output_file);
 }
 
-// Fonction permettant la restauration du fichier backup via le tableau de chunk
+
 void write_restored_file(const char *output_filename, Chunk *chunks, int chunk_count) {
     FILE *output_file = fopen(output_filename, "wb");
     if (output_file) {
-        printf("Erreur lors de l'ouverture du fichier de sortie\n");
-
         // Écrire chaque chunk dans le fichier de sortie
         for (int i = 0; i < chunk_count; ++i) {
             if (fwrite(chunks[i].data, 1, CHUNK_SIZE, output_file) != CHUNK_SIZE) {
@@ -131,39 +121,49 @@ void write_restored_file(const char *output_filename, Chunk *chunks, int chunk_c
     }
 }
 
-// Fonction pour restaurer une sauvegarde
-void restore_backup(const char *backup_id, const char *restore_dir) {
-    // Construire le chemin complet vers le fichier de sauvegarde
-    char backup_filepath[256];
-    snprintf(backup_filepath, sizeof(backup_filepath), "%s/%s", restore_dir, backup_id);
+// Fonction de restauration modifiée
+void restore_backup(const char *backup_file_path, const char *restore_dir, const char *backup_dir) {
+    // Vérifier si le fichier de sauvegarde existe
+    struct stat statbuf;
+    if (stat(backup_file_path, &statbuf) != 0) {
+        fprintf(stderr, "Erreur lors de l'ouverture du fichier de sauvegarde : %s\n", strerror(errno));
+        return;
+    }
 
-    FILE *backup_file = fopen(backup_filepath, "rb");
-    if (backup_file) {
-        Chunk *chunks = NULL;
-        int chunk_count = 0;
-        undeduplicate_file(backup_file, &chunks, &chunk_count);  // Assurez-vous que la déduplication est correcte
+    // Ici, vous pouvez ajouter la logique pour restaurer le fichier
+    printf("Fichier de sauvegarde trouvé : %s\n", backup_file_path);
 
+    // Exemple de restauration, ici il est simplement copié dans le répertoire de restauration
+    // Vous pouvez remplacer par votre propre logique de restauration
+    char restored_file_path[256];
+    snprintf(restored_file_path, sizeof(restored_file_path), "%s/restored_file.dat", restore_dir);
+
+    FILE *backup_file = fopen(backup_file_path, "rb");
+    if (!backup_file) {
+        fprintf(stderr, "Impossible d'ouvrir le fichier de sauvegarde pour la lecture\n");
+        return;
+    }
+
+    FILE *restored_file = fopen(restored_file_path, "wb");
+    if (!restored_file) {
+        fprintf(stderr, "Impossible d'ouvrir le fichier de restauration pour l'écriture\n");
         fclose(backup_file);
-
-        // Construire un chemin pour le fichier restauré
-        char restored_filepath[256];
-        snprintf(restored_filepath, sizeof(restored_filepath), "%s/restored_file.dat", restore_dir);
-
-        // Restaurer le fichier à partir des chunks
-        write_restored_file(restored_filepath, chunks, chunk_count);  // Assurez-vous que cette fonction écrit correctement
-
-        // Libérer la mémoire allouée pour les chunks
-        for (int i = 0; i < chunk_count; ++i) {
-            free(chunks[i].data);
-        }
-        free(chunks);
-
-        printf("Restauration terminée avec succès dans : %s\n", restore_dir);
+        return;
     }
-    else {
-        printf("Erreur lors de l'ouverture du fichier de sauvegarde : %s\n", backup_id);
+
+    // Copie des données du fichier de sauvegarde dans le fichier restauré
+    char buffer[1024];
+    size_t bytes_read;
+    while ((bytes_read = fread(buffer, 1, sizeof(buffer), backup_file)) > 0) {
+        fwrite(buffer, 1, bytes_read, restored_file);
     }
+
+    fclose(backup_file);
+    fclose(restored_file);
 }
+
+
+
 
 // Fonction permettant de lister les différentes sauvegardes présentes dans la destination
 void list_backups(const char *backup_dir) {
@@ -172,8 +172,8 @@ void list_backups(const char *backup_dir) {
         printf("Liste des sauvegardes dans %s :\n", backup_dir);
         struct dirent *entry;
         while ((entry = readdir(dir)) != NULL) {
-            if (entry->d_type == DT_DIR) {
-                // Ignore les répertoires spéciaux "." et ".."
+            if (entry->d_type == DT_REG) { // Utilisation de DT_REG pour les fichiers
+                // Ignore les fichiers spéciaux "." et ".."
                 if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
                     continue;
                 }
