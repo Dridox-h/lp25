@@ -1,0 +1,2 @@
+Contenu du fichier 1
+Contenu modifié dans file1.txt
