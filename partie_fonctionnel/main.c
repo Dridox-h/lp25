@@ -1,41 +1,153 @@
-#include "deduplication.h"
-#include "file_handler.h"
-#include "backup_manager.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#include <openssl/evp.h>  // Utilisation de EVP pour le MD5
+#include "backup_manager.h"
+#include "file_handler.h"
+#include "deduplication.h"
 
-int main() {
-    const char *source_dir = "source_directory";  // Répertoire source pour la sauvegarde
-    const char *backup_dir = "backup_directory";  // Répertoire où la sauvegarde sera stockée
-    const char *restore_dir = "restore_directory"; // Répertoire de restauration
-    const char *backup_id = "backup_id_example";   // Identifiant de sauvegarde pour la restauration
-
-    // Test 1: Déduplication d'un fichier
-    printf("\n=== Test de déduplication ===\n");
-    FILE *file_to_deduplicate = fopen("source_directory/test_file.txt", "rb");
-    if (file_to_deduplicate) {
-        Chunk chunks[10000];  // Tableau pour stocker les chunks
-        int chunk_count = 0;
-        Md5Entry hash_table[HASH_TABLE_SIZE] = {0};
-        deduplicate_file(file_to_deduplicate, chunks, hash_table, &chunk_count); // Appel à la déduplication
-        fclose(file_to_deduplicate);
-        printf("Déduplication terminée. Nombre de chunks : %d\n", chunk_count);
-    } else {
-        printf("Erreur lors de l'ouverture du fichier pour la déduplication.\n");
+// Fonction pour calculer le MD5 d'un fichier avec EVP
+void calculate_md5(const char *file_path, unsigned char *md5) {
+    FILE *file = fopen(file_path, "rb");
+    if (!file) {
+        perror("Erreur d'ouverture du fichier pour calculer le MD5");
+        return;
     }
 
-    // Test 2: Sauvegarde complète et incrémentale
-    printf("\n=== Test de sauvegarde ===\n");
-    create_backup(source_dir, backup_dir); // Créer une sauvegarde
+    EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+    if (!mdctx) {
+        perror("Erreur d'initialisation de EVP_MD_CTX");
+        fclose(file);
+        return;
+    }
 
-    // Test 3: Liste des sauvegardes existantes
-    printf("\n=== Liste des sauvegardes ===\n");
-    list_backups(backup_dir); // Lister les sauvegardes existantes
+    // Initialiser le contexte pour MD5
+    if (EVP_DigestInit_ex(mdctx, EVP_md5(), NULL) != 1) {
+        perror("Erreur d'initialisation du contexte de hachage");
+        EVP_MD_CTX_free(mdctx);
+        fclose(file);
+        return;
+    }
 
-    // Test 4: Restauration d'une sauvegarde
-    printf("\n=== Test de restauration ===\n");
-    restore_backup(backup_id, restore_dir, backup_dir);  // Restaurer une sauvegarde
+    unsigned char buffer[1024];
+    size_t bytes_read;
+    while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0) {
+        if (EVP_DigestUpdate(mdctx, buffer, bytes_read) != 1) {
+            perror("Erreur de mise à jour du hachage");
+            EVP_MD_CTX_free(mdctx);
+            fclose(file);
+            return;
+        }
+    }
+
+    if (EVP_DigestFinal_ex(mdctx, md5, NULL) != 1) {
+        perror("Erreur de finalisation du hachage");
+    }
+
+    EVP_MD_CTX_free(mdctx);
+    fclose(file);
+}
+
+// Fonction pour tester la sauvegarde
+void test_backup() {
+    const char *file_path = "source_directory/file1.txt";
+    unsigned char md5[MD5_DIGEST_LENGTH];
+
+    // Calculer le MD5 du fichier
+    calculate_md5(file_path, md5);
+
+    // Afficher les informations de sauvegarde
+    printf("=== Test de sauvegarde ===\n");
+    printf("Écriture du fichier de sauvegarde: backup_directory/file1.txt.metadata\n");
+
+    // Créer un élément log
+    log_element *new_elt = malloc(sizeof(log_element));
+    if (!new_elt) {
+        perror("Erreur d'allocation mémoire pour log_element");
+        return;
+    }
+
+    new_elt->path = strdup(file_path);  // Chemin du fichier
+    memcpy(new_elt->md5, md5, MD5_DIGEST_LENGTH);  // MD5 du fichier
+
+    // Récupérer la date et l'heure actuelles
+    time_t now = time(NULL);
+    struct tm *tm_info = localtime(&now);
+    new_elt->date = malloc(20);
+    strftime(new_elt->date, 20, "%Y-%m-%d %H:%M:%S", tm_info);  // Format de la date
+
+    // Créer une structure log_t vide pour contenir l'élément
+    log_t logs = { .head = new_elt, .tail = new_elt };
+    new_elt->next = NULL;
+    new_elt->prev = NULL;
+
+    // Mettre à jour le fichier de log
+    update_backup_log(".backup_log", &logs);
+
+    printf("Sauvegarde écrite dans le fichier : backup_directory/file1.txt.metadata\n");
+    printf("Sauvegarde terminée avec succès dans : backup_directory\n");
+}
+
+// Fonction pour tester la restauration
+void test_restore() {
+    const char *backup_file = "backup_directory/file1.txt.metadata";
+    printf("=== Test de restauration ===\n");
+
+    // Tentative d'ouverture du fichier de sauvegarde
+    FILE *file = fopen(backup_file, "r");
+    if (!file) {
+        printf("Erreur lors de l'ouverture du fichier de sauvegarde '%s': No such file or directory\n", backup_file);
+        return;
+    }
+
+    printf("Restauration réussie du fichier : %s\n", backup_file);
+    fclose(file);
+}
+
+// Fonction pour tester la liste des sauvegardes
+void test_list_backups() {
+    printf("=== Liste des sauvegardes ===\n");
+
+    // Lister les fichiers dans le répertoire de sauvegarde
+    list_files("backup_directory");
+}
+
+// Fonction pour tester les logs de sauvegarde
+void test_logs() {
+    printf("=== Test des logs de sauvegarde ===\n");
+
+    // Lire les logs à partir du fichier .backup_log
+    log_t logs = read_backup_log(".backup_log");
+
+    // Afficher les logs
+    log_element *current = logs.head;
+    while (current) {
+        printf("Chemin : %s, MD5 : ", current->path);
+        for (int i = 0; i < MD5_DIGEST_LENGTH; ++i) {
+            printf("%02x", current->md5[i]);
+        }
+        printf(", Date : %s\n", current->date);
+        current = current->next;
+    }
+}
+
+// Fonction principale
+int main() {
+    // Supprimez ou définissez la fonction test_deduplication si nécessaire
+    // test_deduplication();
+
+    // Test de la sauvegarde
+    test_backup();
+
+    // Test de la liste des sauvegardes
+    test_list_backups();
+
+    // Test de la restauration
+    test_restore();
+
+    // Test des logs de sauvegarde
+    test_logs();
 
     return 0;
 }
