@@ -1,41 +1,45 @@
-#include "deduplication.h"
-#include "file_handler.h"
 #include "backup_manager.h"
+#include "file_handler.h"
+#include "deduplication.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+#include <errno.h>
 
 int main() {
-    const char *source_dir = "source_directory";  // Répertoire source pour la sauvegarde
-    const char *backup_dir = "backup_directory";  // Répertoire où la sauvegarde sera stockée
-    const char *restore_dir = "restore_directory"; // Répertoire de restauration
-    const char *backup_id = "backup_id_example";   // Identifiant de sauvegarde pour la restauration
+    const char *source_dir = "test_source";  // Répertoire source à sauvegarder
+    const char *backup_dir = "backups";      // Répertoire où les sauvegardes seront stockées
+    const char *restore_dir = "restored";    // Répertoire où la sauvegarde sera restaurée
 
-    // Test 1: Déduplication d'un fichier
-    printf("\n=== Test de déduplication ===\n");
-    FILE *file_to_deduplicate = fopen("source_directory/test_file.txt", "rb");
-    if (file_to_deduplicate) {
-        Chunk chunks[10000];  // Tableau pour stocker les chunks
-        int chunk_count = 0;
-        Md5Entry hash_table[HASH_TABLE_SIZE] = {0};
-        deduplicate_file(file_to_deduplicate, chunks, hash_table, &chunk_count); // Appel à la déduplication
-        fclose(file_to_deduplicate);
-        printf("Déduplication terminée. Nombre de chunks : %d\n", chunk_count);
-    } else {
-        printf("Erreur lors de l'ouverture du fichier pour la déduplication.\n");
+    // Créer le répertoire de sauvegarde si nécessaire
+    if (mkdir(backup_dir, 0700) == -1 && errno != EEXIST) {
+        perror("Erreur lors de la création du répertoire de sauvegarde");
+        return 1;
     }
 
-    // Test 2: Sauvegarde complète et incrémentale
-    printf("\n=== Test de sauvegarde ===\n");
-    create_backup(source_dir, backup_dir); // Créer une sauvegarde
+    // Créer le répertoire de restauration si nécessaire
+    if (mkdir(restore_dir, 0700) == -1 && errno != EEXIST) {
+        perror("Erreur lors de la création du répertoire de restauration");
+        return 1;
+    }
 
-    // Test 3: Liste des sauvegardes existantes
-    printf("\n=== Liste des sauvegardes ===\n");
-    list_backups(backup_dir); // Lister les sauvegardes existantes
+    // Créer une sauvegarde du répertoire source dans le répertoire de sauvegarde
+    printf("Création de la sauvegarde...\n");
+    create_backup(source_dir, backup_dir);
 
-    // Test 4: Restauration d'une sauvegarde
-    printf("\n=== Test de restauration ===\n");
-    restore_backup(backup_id, restore_dir, backup_dir);  // Restaurer une sauvegarde
+    // Liste les sauvegardes disponibles
+    printf("\nListe des sauvegardes disponibles dans le répertoire '%s':\n", backup_dir);
+    list_backups(backup_dir);
+
+    // Supposons que nous avons un backup_id ici (pour cet exemple, nous utiliserons simplement un nom fixe)
+    // Vous pouvez adapter cette logique pour trouver l'ID réel du backup créé.
+    char backup_id[256];
+    snprintf(backup_id, sizeof(backup_id), "%s/backup_2024-12-15_14-30-00", backup_dir);  // Exemple de chemin de sauvegarde
+
+    // Restaurer la sauvegarde dans le répertoire de restauration
+    printf("\nRestauration de la sauvegarde '%s'...\n", backup_id);
+    restore_backup(backup_id, restore_dir);
+
+    printf("Restauration terminée. Le fichier restauré devrait être dans le répertoire '%s'.\n", restore_dir);
 
     return 0;
 }

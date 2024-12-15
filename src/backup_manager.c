@@ -12,72 +12,38 @@
 
 // Fonction pour créer une nouvelle sauvegarde complète puis incrémentale
 void create_backup(const char *source_dir, const char *backup_dir) {
-    /*
-     * @param: source_dir est le chemin vers le répertoire à sauvegarder
-     * @param: backup_dir est le chemin vers le répertoire de sauvegarde
-     */
+    // Crée une nouvelle sauvegarde complète ou incrémentale selon l'existence de logs
+    struct tm *tm_info;
+    time_t t;
+    char backup_name[256];
+    
+    // Récupérer l'heure actuelle pour nommer le dossier de la sauvegarde
+    time(&t);
+    tm_info = localtime(&t);
+    strftime(backup_name, sizeof(backup_name), "%Y-%m-%d-%H:%M:%S", tm_info);
+    
+    // Créer un dossier pour la sauvegarde avec la date/heure
+    char backup_path[512];
+    snprintf(backup_path, sizeof(backup_path), "%s/%s", backup_dir, backup_name);
+    mkdir(backup_path, 0777);
 
-    DIR *dir;
-    struct dirent *entry;
-    dir = opendir(source_dir);
-    if (dir != NULL) {
-        // Créer le répertoire de sauvegarde s'il n'existe pas
-        if (mkdir(backup_dir, 0755) == -1) {
-            // Si le répertoire existe déjà, on n'affiche pas d'erreur
-            if (errno != EEXIST) {
-                printf("Erreur lors de la création du répertoire de sauvegarde : %s\n", strerror(errno));
-                closedir(dir);
-                return;
-            }
-        }
-
-        // Initialiser la table de hachage pour gérer la déduplication
-        Md5Entry hash_table[HASH_TABLE_SIZE] = {0};
-        Chunk chunks[10000]; // Un tableau pour les chunks
-        int chunk_count = 0;
-
-        // Parcourir tous les fichiers dans le répertoire source
-        while ((entry = readdir(dir)) != NULL) {
-            // Ignorer les fichiers "." et ".."
-            if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
-                continue;
-            }
-
-            // Construire les chemins complets des fichiers source et destination
-            char source_path[1024];
-            snprintf(source_path, sizeof(source_path), "%s/%s", source_dir, entry->d_name);
-
-            char backup_path[1024];
-            snprintf(backup_path, sizeof(backup_path), "%s/%s", backup_dir, entry->d_name);
-
-            // Vérifier si c'est un fichier régulier
-            struct stat statbuf;
-            if (stat(source_path, &statbuf) == 0 && S_ISREG(statbuf.st_mode)) {
-                // Ouvrir le fichier source
-                FILE *source_file = fopen(source_path, "rb");
-                if (source_file == NULL) {
-                    printf("Erreur lors de l'ouverture du fichier source : %s\n", source_path);
-                    continue;
-                }
-
-                // Effectuer la déduplication du fichier et ajouter les chunks
-                deduplicate_file(source_file, chunks, hash_table, &chunk_count); // Ajout du &chunk_count
-
-                fclose(source_file);
-
-                // Sauvegarder les informations de chunks dans le répertoire de sauvegarde
-                char backup_metadata_path[2048];
-                snprintf(backup_metadata_path, sizeof(backup_metadata_path), "%s.metadata", backup_path);
-                write_backup_file(backup_metadata_path, chunks, chunk_count);
-            }
-        }
-        closedir(dir);
-
-        printf("Sauvegarde terminée avec succès dans : %s\n", backup_dir);
+    // Vérifier si une sauvegarde précédente existe
+    char log_path[512];
+    snprintf(log_path, sizeof(log_path), "%s/%s/.backup_log", backup_dir, backup_name);
+    
+    log_t logs;
+    if (access(log_path, F_OK) != -1) {
+        // Il existe déjà une sauvegarde précédente
+        logs = read_backup_log(log_path);
+        // Effectuer une sauvegarde incrémentale en comparant avec les logs
+        backup_incremental(source_dir, backup_path, &logs);
+    } else {
+        // Pas de sauvegarde précédente, créer une nouvelle sauvegarde complète
+        backup_complete(source_dir, backup_path);
     }
-    else {
-        printf("Erreur lors de l'ouverture du répertoire source : %s\n", source_dir);
-    }
+
+    // Écrire ou mettre à jour le log de la sauvegarde
+    update_backup_log(log_path, &logs);
 }
 
 

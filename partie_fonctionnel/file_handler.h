@@ -3,8 +3,6 @@
 
 #include <stdio.h>
 #include <openssl/md5.h>
-#include <stddef.h>
-#include <stdlib.h>
 
 // Structure pour une ligne du fichier log
 typedef struct log_element{
