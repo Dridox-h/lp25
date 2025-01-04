@@ -87,6 +87,14 @@ void write_log_element(log_element *elt, FILE *logfile){
    * @param: elt - un élément log à écrire sur une ligne
    *         logfile - le chemin du fichier .backup_log
    */
+    fprintf(logfile, "%s;%s;", elt->path, elt->date);
+
+    // Convertir le MD5 en chaîne hexadécimale
+    for (int i = 0; i < MD5_DIGEST_LENGTH; i++) {
+        fprintf(logfile, "%02x", elt->md5[i]);
+    }
+
+    fprintf(logfile, "\n");
 }
 
 void list_files(const char *path){

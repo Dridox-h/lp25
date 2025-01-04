@@ -64,9 +64,26 @@ void write_backup_file(const char *output_filename, Chunk *chunks, int chunk_cou
 
 // Fonction implémentant la logique pour la sauvegarde d'un fichier
 void backup_file(const char *filename) {
-    /*
-    */
+    FILE *file = fopen(filename, "rb");
+    if (!file) {
+        perror("Erreur d'ouverture du fichier pour la sauvegarde");
+        return;
+    }
+
+    Chunk chunks[1000];
+    Md5Entry hash_table[HASH_TABLE_SIZE] = {0};
+    deduplicate_file(file, chunks, hash_table);
+
+    // Générer un nom pour le fichier de sauvegarde
+    char output_filename[256];
+    snprintf(output_filename, sizeof(output_filename), "%s.bak", filename);
+
+    // Sauvegarder les chunks dédupliqués
+    write_backup_file(output_filename, chunks, 1000);
+
+    fclose(file);
 }
+
 
 
 // Fonction permettant la restauration du fichier backup via le tableau de chunk
