@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <openssl/md5.h>
+#include <openssl/evp.h>
 #include <dirent.h>
 
 // Fonction de hachage MD5 pour l'indexation
@@ -18,6 +18,37 @@ unsigned int hash_md5(unsigned char *md5) {
 
 // Fonction pour calculer le MD5 d'un chunk
 void compute_md5(void *data, size_t len, unsigned char *md5_out) {
+        if (data == NULL || md5_out == NULL) {
+        fprintf(stderr, "Données ou sortie MD5 invalides\n");
+        return;
+    }
+
+    EVP_MD_CTX *ctx = EVP_MD_CTX_new(); 
+    if (ctx == NULL) {
+        fprintf(stderr, "Erreur de création du contexte EVP\n");
+        return;
+    }
+
+    if (EVP_DigestInit_ex(ctx, EVP_md5(), NULL) != 1) {
+        fprintf(stderr, "Erreur d'initialisation de l'algorithme MD5\n");
+        EVP_MD_CTX_free(ctx);
+        return;
+    }
+
+    if (EVP_DigestUpdate(ctx, data, len) != 1) {
+        fprintf(stderr, "Erreur lors de la mise à jour du hachage\n");
+        EVP_MD_CTX_free(ctx);
+        return;
+    }
+
+    unsigned int md5_length = 0;
+    if (EVP_DigestFinal_ex(ctx, md5_out, &md5_length) != 1) {
+        fprintf(stderr, "Erreur lors de la finalisation du hachage\n");
+        EVP_MD_CTX_free(ctx);
+        return;
+    }
+
+    EVP_MD_CTX_free(ctx);
 }
 
 // Fonction permettant de chercher un MD5 dans la table de hachage
@@ -31,7 +62,41 @@ int find_md5(Md5Entry *hash_table, unsigned char *md5) {
 
 // Ajouter un MD5 dans la table de hachage
 void add_md5(Md5Entry *hash_table, unsigned char *md5, int index) {
+    if (!hash_table || !md5) {
+        fprintf(stderr, "Table de hachage ou MD5 invalide\n");
+        return;
+    }
+
+    // Calcul de l'index de hachage
+    unsigned int hash = 0;
+    for (int i = 0; i < MD5_DIGEST_LENGTH; i++) {
+        hash = (hash << 5) + hash + md5[i];
+    }
+    hash = hash % HASH_TABLE_SIZE;
+
+    // Créer un nouvel élément
+    Md5Entry *new_entry = (Md5Entry *)malloc(sizeof(Md5Entry));
+    if (!new_entry) {
+        perror("Erreur d'allocation mémoire pour un nouvel élément");
+        return;
+    }
+
+    memcpy(new_entry->md5, md5, MD5_DIGEST_LENGTH);
+    new_entry->index = index;
+    new_entry->next = NULL;
+
+    // Ajouter à la table de hachage
+    if (!hash_table[hash].next) {
+        // Aucun élément à cet index, ajouter directement
+        hash_table[hash] = *new_entry;
+        free(new_entry);
+    } else {
+        // Gestion des collisions : insertion en début de liste
+        new_entry->next = hash_table[hash].next;
+        hash_table[hash].next = new_entry;
+    }
 }
+
 
 // Fonction pour convertir un fichier non dédupliqué en tableau de chunks
 void deduplicate_file(FILE *file, Chunk *chunks, Md5Entry *hash_table){

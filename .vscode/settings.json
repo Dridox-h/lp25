@@ -59,6 +59,8 @@
   "files.associations": {
     "*.embeddedhtml": "html",
     "cstdlib": "c",
-    "stdlib.h": "c"
+    "stdlib.h": "c",
+    "compute_MD5.C": "cpp",
+    "dirent.h": "c"
   }
 }
