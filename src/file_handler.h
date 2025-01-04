@@ -27,4 +27,4 @@ void list_files(const char *path);
 void copy_file(const char *src, const char *dest);
 
 #endif // FILE_HANDLER_H
-#endif // FILE_HANDLER_H
+

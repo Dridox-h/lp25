@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <openssl/md5.h>
+#include <openssl/evp.h>
 #include <dirent.h>
 
 // Fonction de hachage MD5 pour l'indexation
@@ -71,3 +71,4 @@ void undeduplicate_file(FILE *file, Chunk **chunks, int *chunk_count) {
     *           chunk_count est un compteur du nombre de chunk restauré depuis le fichier filename
     */
 }
+
