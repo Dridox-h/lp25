@@ -39,6 +39,27 @@ void deduplicate_file(FILE *file, Chunk *chunks, Md5Entry *hash_table){
     *           chunks est le tableau de chunks initialisés qui contiendra les chunks issu du fichier
     *           hash_table est le tableau de hachage qui contient les MD5 et l'index des chunks unique
     */
+
+   unsigned char buffer[CHUNK_SIZE];
+    size_t bytes_read;
+    int chunk_index = 0;
+
+    while ((bytes_read = fread(buffer, 1, CHUNK_SIZE, file)) > 0) {
+        // Calculer le MD5 du chunk
+        unsigned char md5[MD5_DIGEST_LENGTH];
+        compute_md5(buffer, bytes_read, md5);
+
+        // Vérifier si ce chunk a déjà été ajouté dans la table de hachage
+        int index = find_md5(hash_table, md5);
+        if (index == -1) {
+            // Ce chunk est unique, ajouter à la table de hachage et le stocker dans le tableau de chunks
+            add_md5(hash_table, md5, chunk_index);
+            chunks[chunk_index].data = malloc(bytes_read);
+            memcpy(chunks[chunk_index].data, buffer, bytes_read);
+            memcpy(chunks[chunk_index].md5, md5, MD5_DIGEST_LENGTH);
+            chunk_index++;
+        }
+    }
 }
 
 
