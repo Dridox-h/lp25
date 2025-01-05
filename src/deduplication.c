@@ -191,8 +191,4 @@ void undeduplicate_file(FILE *file, Chunk **chunks, int *chunk_count) {
     }
 
     printf("Restauration réussie de %d chunks.\n", *chunk_count);
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 1a2bb3c572684dc2b0d6b61bbdc635783f293678

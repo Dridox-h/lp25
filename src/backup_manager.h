@@ -11,6 +11,8 @@
 #include <sys/stat.h>
 #include <errno.h>
 
+#define MAX_PATH_LENGTH 4096
+
 // Fonction pour créer un nouveau backup incrémental
 void create_backup(const char *source_dir, const char *backup_dir);
 // Fonction pour restaurer une sauvegarde

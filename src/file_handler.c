@@ -3,6 +3,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <dirent.h>
+#include <time.h>
 #include "file_handler.h"
 #include "deduplication.h"
 
@@ -11,60 +12,60 @@
 // YYYY-MM-DD-hh:mm:ss.sss/folder1/file1;mtime;md5
 
 // Fonction permettant de lire un élément du fichier .backup_log
-log_t read_backup_log(const char *logfile){
-    /* Implémenter la logique pour la lecture d'une ligne du fichier ".backup_log"
-    * @param: logfile - le chemin vers le fichier .backup_log
-    * @return: une structure log_t
-    */
-    log_t logs = {NULL, NULL}; // Initialise une liste vide pour stocker les logs.
-    FILE *file = fopen(logfile, "r"); 
-    if (!file) { 
-        perror("Erreur d'ouverture du fichier de log"); 
-        return logs; // Retourne une liste vide en cas d'erreur.
+log_t read_backup_log(const char *logfile) {
+    log_t logs = {NULL, NULL};  // Initialisation de la liste chaînée
+    FILE *file = fopen(logfile, "r");
+    if (!file) {
+        perror("Erreur lors de l'ouverture du fichier log");
+        return logs;
     }
 
-    char line[1024]; // Buffer pour stocker une ligne du fichier.
-    while (fgets(line, sizeof(line), file)) { // Lit chaque ligne du fichier jusqu'à la fin.
-        log_element *new_element = malloc(sizeof(log_element)); // Alloue un nouvel élément pour la liste chaînée.
-        if (!new_element) { 
-            perror("Erreur d'allocation mémoire");
-            fclose(file); 
-            return logs;
+    char line[512];
+    while (fgets(line, sizeof(line), file)) {
+        char date[30], path[256], mtime[30], md5_str[MD5_DIGEST_LENGTH * 2 + 1];
+        unsigned char md5[MD5_DIGEST_LENGTH];
+
+        // Lecture et découpage de la ligne
+        if (sscanf(line, "%29[^/]/%255[^;];%29[^;];%32s", date, path, mtime, md5_str) != 4) {
+            continue;  // Ignore si le format de ligne est incorrect
         }
 
-        // Découpage de la ligne en trois parties : chemin, MD5 et date.
-        char *token = strtok(line, ";"); 
-        new_element->path = strdup(token); // Copie le chemin dans l'élément.
+        // Convertir la chaîne MD5 en tableau de bytes
+        for (int i = 0; i < MD5_DIGEST_LENGTH; i++) {
+            sscanf(&md5_str[i * 2], "%2hhx", &md5[i]);
+        }
 
-        token = strtok(NULL, ";");
-        memcpy(new_element->md5, token, MD5_DIGEST_LENGTH); // Copie le MD5 dans l'élément.
+        // Créer un nouvel élément log
+        log_element *new_elt = malloc(sizeof(log_element));
+        if (!new_elt) {
+            continue;  // Si l'allocation échoue, ignorer cette ligne
+        }
 
-        token = strtok(NULL, "\n");
-        new_element->date = strdup(token); // Copie la date dans l'élément.
+        new_elt->path = path;
+        new_elt->date = mtime;
+        memcpy(new_elt->md5, md5, MD5_DIGEST_LENGTH);
+        new_elt->next = NULL;
+        new_elt->prev = logs.tail;
 
-        // Ajoute le nouvel élément à la liste chaînée.
-        new_element->next = NULL; // L'élément suivant est NULL (fin de liste pour l'instant).
-        new_element->prev = logs.tail; // Le précédent élément devient la queue actuelle.
-
-        if (logs.tail) {
-            logs.tail->next = new_element; // Lie l'élément précédent au nouvel élément.
+        // Ajouter l'élément à la liste
+        if (!logs.head) {
+            logs.head = new_elt;
         } else {
-            logs.head = new_element; // Si la liste est vide, le nouvel élément devient la tête.
+            logs.tail->next = new_elt;
         }
-        logs.tail = new_element; // Met à jour la queue avec le nouvel élément.
+        logs.tail = new_elt;
     }
 
-    fclose(file); 
-    return logs; // Retourne la liste chaînée des logs.
+    fclose(file);
+    return logs;
 }
 
-
 // Fonction permettant de mettre à jour une ligne du fichier .backup_log
-void update_backup_log(const char *logfile, log_t *logs){
-  /* Implémenter la logique de modification d'une ligne du fichier ".backup_log"
-  * @param: logfile - le chemin vers le fichier .backup_log
-  *         logs - qui est la liste de toutes les lignes du fichier .backup_log sauvegardée dans une structure log_t
-  */
+void update_backup_log(const char *logfile, log_t *logs) {
+    /* Implémenter la logique de modification du fichier ".backup_log" directement dans cette fonction
+    * @param: logfile - le chemin vers le fichier .backup_log
+    *         logs - qui est la liste de toutes les lignes du fichier .backup_log sauvegardée dans une structure log_t
+    */
     FILE *file = fopen(logfile, "w"); // Ouvre le fichier de log en mode écriture.
     if (!file) { 
         perror("Erreur d'ouverture du fichier de log");
@@ -73,12 +74,31 @@ void update_backup_log(const char *logfile, log_t *logs){
 
     log_element *current = logs->head; // Commence par le premier élément de la liste.
     while (current) { // Parcourt tous les éléments de la liste chaînée.
-        // Écrit les informations de l'élément actuel dans le fichier.
-        fprintf(file, "%s;%s;%s\n", current->path, current->md5, current->date);
+
+        // 1. Obtenir la date actuelle au format YYYY-MM-DD-hh:mm:ss.sss
+        time_t t = time(NULL);
+        struct tm tm_info;
+        char date_str[30];
+        localtime_r(&t, &tm_info);
+        strftime(date_str, sizeof(date_str), "%Y-%m-%d-%H:%M:%S.", &tm_info);
+
+        // Ajouter la partie millisecondes (ajusté selon le besoin)
+        snprintf(date_str + 19, 4, "%03d", 123);  // Utiliser un temps d'exemple (123 ms)
+
+        // 2. Conversion MD5 en chaîne hexadécimale
+        char md5_str[2 * MD5_DIGEST_LENGTH + 1];
+        for (int i = 0; i < MD5_DIGEST_LENGTH; i++) {
+            sprintf(&md5_str[i * 2], "%02x", current->md5[i]);
+        }
+
+        // 3. Écrire dans le fichier log au format "date chemin;date_modification;md5"
+        fprintf(file, "%s%s;%s;%s\n", date_str, current->path, current->date, md5_str);
+
+        // Passer à l'élément suivant de la liste
         current = current->next; 
     }
 
-    fclose(file); 
+    fclose(file);  // Fermer le fichier après avoir écrit toutes les lignes.
 }
 
 
@@ -87,14 +107,28 @@ void write_log_element(log_element *elt, FILE *logfile){
    * @param: elt - un élément log à écrire sur une ligne
    *         logfile - le chemin du fichier .backup_log
    */
-    fprintf(logfile, "%s;%s;", elt->path, elt->date);
-
-    // Convertir le MD5 en chaîne hexadécimale
-    for (int i = 0; i < MD5_DIGEST_LENGTH; i++) {
-        fprintf(logfile, "%02x", elt->md5[i]);
+    if (elt == NULL || logfile == NULL) {
+        return;
     }
 
-    fprintf(logfile, "\n");
+    // Obtenir la date actuelle au format YYYY-MM-DD-hh:mm:ss.sss
+    time_t t = time(NULL);
+    struct tm tm_info;
+    char date_str[30];
+    localtime_r(&t, &tm_info);
+    strftime(date_str, sizeof(date_str), "%Y-%m-%d-%H:%M:%S.", &tm_info);
+
+    // Ajouter la partie millisecondes (ajusté selon le besoin)
+    snprintf(date_str + 19, 4, "%03d", 123);  // Utiliser un temps d'exemple (123 ms)
+
+    // Conversion MD5 en chaîne hexadécimale et écriture dans le fichier log
+    char md5_str[2 * MD5_DIGEST_LENGTH + 1];
+    for (int i = 0; i < MD5_DIGEST_LENGTH; i++) {
+        sprintf(&md5_str[i * 2], "%02x", elt->md5[i]);
+    }
+
+    // Écrire dans le fichier log
+    fprintf(logfile, "%s%s;%s;%s\n", date_str, elt->path, elt->date, md5_str);
 }
 
 void list_files(const char *path)

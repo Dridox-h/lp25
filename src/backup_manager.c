@@ -60,12 +60,17 @@ void create_backup(const char *source_dir, const char *backup_dir)
                 continue;
             }
             while ((bytes_read = fread(buffer, 1, CHUNK_SIZE, source_file)) > 0)
-                fwrite(buffer, 1, bytes_read, backup_file);
+            {
+                if (fwrite(buffer, 1, bytes_read, backup_file) != bytes_read) {
+                    perror("Erreur lors de l'écriture dans le fichier de sauvegarde");
+                    break;
+                }
+            }
             fclose(source_file);
             fclose(backup_file);
         }
     }
-		if (closedir(dir) == -1)
+	if (closedir(dir) == -1)
         perror("Erreur lors de la fermeture du répertoire source");
 }
 
@@ -115,7 +120,6 @@ void write_backup_file(const char *output_filename, Chunk *chunks, int chunk_cou
     printf("Sauvegarde écrite avec succès dans %s\n", output_filename);
 }
 
-
 // Fonction implémentant la logique pour la sauvegarde d'un fichier
 void backup_file(const char *filename) {
     FILE *file = fopen(filename, "rb");
@@ -124,7 +128,7 @@ void backup_file(const char *filename) {
         return;
     }
 
-    Chunk chunks[1000];
+    Chunk chunks[CHUNK_SIZE];
     Md5Entry hash_table[HASH_TABLE_SIZE] = {0};
     deduplicate_file(file, chunks, hash_table);
 
@@ -182,7 +186,6 @@ void restore_backup(const char *backup_id, const char *restore_dir) {
     *          restore_dir est le répertoire de destination de la restauration
     */
    // Définir une taille fixe pour le chemin
-    #define MAX_PATH_LENGTH 4096
 
     // Ouvrir le répertoire de sauvegarde 
     DIR *backup_dir = opendir(backup_id);
@@ -209,8 +212,12 @@ void restore_backup(const char *backup_id, const char *restore_dir) {
 
             // Lire le nombre de chunks dans le fichier de sauvegarde
             int chunk_count;
-            fread(&chunk_count, sizeof(int), 1, backup_file);
-
+            if (fread(&chunk_count, sizeof(int), 1, backup_file) != 1) {
+                perror("Erreur lors de la lecture du nombre de chunks");
+                fclose(backup_file);
+                continue;
+            }
+            
             // Restaurer les chunks depuis le fichier
             Chunk *chunks = NULL;
             undeduplicate_file(backup_file, &chunks, &chunk_count);
