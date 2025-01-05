@@ -3,6 +3,9 @@
 
 #include <stdio.h>
 #include <openssl/md5.h>
+#include <sys/stat.h>
+
+#define PATH_MAX 4096
 
 // Structure pour une ligne du fichier log
 typedef struct log_element{

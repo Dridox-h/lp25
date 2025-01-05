@@ -57,7 +57,19 @@ int find_md5(Md5Entry *hash_table, unsigned char *md5) {
     *           md5 est le md5 du chunk dont on veut déterminer l'unicité
     *  @return: retourne l'index s'il trouve le md5 dans le tableau et -1 sinon
     */
-    
+    unsigned int index = hash_md5(md5);
+    unsigned int start_index = index;
+
+    do
+    {
+        if (hash_table[index].index == -1)
+            return (-1);
+        if (!memcmp(hash_table[index].md5, md5, MD5_DIGEST_LENGTH))
+            return (hash_table[index].index);
+        index = (index + 1) % HASH_TABLE_SIZE;
+    } while (index != start_index);
+
+    return (-1);
 }
 
 // Ajouter un MD5 dans la table de hachage
