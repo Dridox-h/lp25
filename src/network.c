@@ -1,134 +1,93 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-#include <sys/socket.h>
+#include "network.h"
 
 void send_data(const char *server_address, int port, const void *data, size_t size) {
-    // Créer une socket
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
+     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
-        perror("Erreur lors de la création de la socket");
+        perror("Erreur dans la création du socket");
         return;
     }
 
-    // Configuration de l'adresse du serveur
-    struct sockaddr_in server;
-    memset(&server, 0, sizeof(server));
-    server.sin_family = AF_INET;
-    server.sin_port = htons(port);
+    struct sockaddr_in server_addr;
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(port);
 
-    if (inet_pton(AF_INET, server_address, &server.sin_addr) <= 0) {
-        perror("Adresse IP invalide ou non supportée");
+    // Convertir l'adresse IP
+    if (inet_pton(AF_INET, server_address, &server_addr.sin_addr) <= 0) {
+        perror("Erreur de la conversion de l'adresse IP");
         close(sock);
         return;
     }
 
-    // Connexion au serveur
-    if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
-        perror("Erreur lors de la connexion au serveur");
+    // Établir la connexion au serveur
+    if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("Erreur de connexion");
         close(sock);
         return;
     }
 
-    // Envoi des données
-    size_t sent = send(sock, data, size, 0);
-    if (sent != size) {
-        perror("Erreur lors de l'envoi des données");
+    // Envoyer les données
+    size_t bytes_sent = send(sock, data, size, 0);
+    if (bytes_sent < 0) {
+        perror("Erreur dans l'envoie des données");
     } else {
-        printf("Données envoyées : %zu octets\n", sent);
+        printf("Envoyé %zd octets au serveur.\n", bytes_sent);
     }
 
-    // Fermer la socket
     close(sock);
 }
 
-void receive_data(int port, void **data, size_t *size) {
-    int server_fd, new_socket;
-    struct sockaddr_in address;
-    int addrlen = sizeof(address);
-    char buffer[1024];
-    size_t total_read = 0;
-    size_t buffer_size = sizeof(buffer);
-
-    // Créer une socket
-    server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_fd == -1) {
-        perror("Erreur lors de la création de la socket");
-        exit(EXIT_FAILURE);
+size_t receive_data(int port, size_t size) {
+    int server_sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_sock < 0) {
+        perror("Erreur dans la création de socket");
+        return -1;
     }
 
-    // Configurer l'adresse du serveur
-    memset(&address, 0, sizeof(address));
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = htons(port);
+    struct sockaddr_in server_addr;
+    server_addr.sin_family = AF_INET;
+    inet_pton(AF_INET, "0.0.0.0", &(server_addr.sin_addr)) ;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(port);
+    memset(&(server_addr.sin_zero), 0, sizeof(server_addr.sin_zero));
 
-    // Attacher la socket à l'adresse et au port
-    if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
-        perror("Erreur lors de l'attachement de la socket");
-        close(server_fd);
-        exit(EXIT_FAILURE);
+    // Lier le socket à l'adresse et au port
+    if (bind(server_sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("Erreur dans la liaison du socket à l'adresse et au port");
+        close(server_sock);
+        return -1;
     }
 
     // Écouter les connexions entrantes
-    if (listen(server_fd, 3) < 0) {
-        perror("Erreur lors de l'écoute des connexions");
-        close(server_fd);
-        exit(EXIT_FAILURE);
+    if (listen(server_sock, 1) < 0) {
+        perror("Erreur lors de l'écoute du serveur");
+        close(server_sock);
+        return -1;
     }
 
-    printf("En attente de connexions sur le port %d...\n", port);
+    printf("En attente d'une connexion sur le port %d...\n", port);
 
-    // Accepter une connexion entrante
-    new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t *)&addrlen);
-    if (new_socket < 0) {
+    // Accepter une connexion
+    int client_sock = accept(server_sock, NULL, NULL);
+    if (client_sock < 0) {
         perror("Erreur lors de l'acceptation de la connexion");
-        close(server_fd);
-        exit(EXIT_FAILURE);
+        close(server_sock);
+        return -1;
     }
 
-    // Recevoir les données
-    *data = NULL;
-    *size = 0;
-
-    while (1) {
-        ssize_t bytes_read = read(new_socket, buffer, buffer_size);
-        if (bytes_read < 0) {
-            perror("Erreur lors de la réception des données");
-            free(*data);
-            close(new_socket);
-            close(server_fd);
-            exit(EXIT_FAILURE);
-        }
-        if (bytes_read == 0) {
-            // Fin de la transmission
-            break;
-        }
-
-        // Allouer ou réallouer de la mémoire pour stocker les données
-        void *temp = realloc(*data, total_read + bytes_read);
-        if (!temp) {
-            perror("Erreur d'allocation mémoire");
-            free(*data);
-            close(new_socket);
-            close(server_fd);
-            exit(EXIT_FAILURE);
-        }
-
-        *data = temp;
-
-        // Copier les données reçues dans la mémoire allouée
-        memcpy((char *)(*data) + total_read, buffer, bytes_read);
-        total_read += bytes_read;
+    // Recevoir des données
+    char buffer[(int)size];
+    size_t bytes_received = recv(client_sock, buffer, sizeof(buffer), 0);
+    if (bytes_received < 0) {
+        perror("Erreur dans la réception des données");
+        close(client_sock);
+        close(server_sock);
+        return -1;
     }
 
-    *size = total_read;
+    // Si des données ont bien été récupérées, elles sont retournées pour être sauvegardées/écrites
+    close(client_sock);
+    close(server_sock);
 
-    printf("Données reçues : %zu octets\n", *size);
-
-    // Fermer les sockets
-    close(new_socket);
-    close(server_fd);
+    return bytes_received;
 }
