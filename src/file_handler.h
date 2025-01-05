@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <openssl/md5.h>
+#include <sys/stat.h>
 
 #define PATH_MAX 4096
 

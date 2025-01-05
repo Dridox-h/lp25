@@ -33,7 +33,7 @@ void create_backup(const char *source_dir, const char *backup_dir)
         closedir(dir);
         return;
     }
-    while (entry = readdir(dir))
+    while ((entry = readdir(dir)))
     {
         if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
             continue;
@@ -156,6 +156,12 @@ void write_restored_file(const char *output_filename, Chunk *chunks, int chunk_c
     }
     for (int i = 0; i < chunk_count; ++i)
     {
+        if (!chunks[i].data || !chunks[i].size)
+        {
+            fprintf(stderr, "Chunk %d invalide : données NULL ou taille nulle\n", i);
+            fclose(output_file);
+            return;
+        }
         written = fwrite(chunks[i].data, 1, chunks[i].size, output_file);
         if (written != chunks[i].size)
         {
