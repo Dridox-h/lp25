@@ -9,10 +9,64 @@
 #include <sys/stat.h>
 
 // Fonction pour créer une nouvelle sauvegarde complète puis incrémentale
-void create_backup(const char *source_dir, const char *backup_dir) {
+void create_backup(const char *source_dir, const char *backup_dir)
+{
     /* @param: source_dir est le chemin vers le répertoire à sauvegarder
     *          backup_dir est le chemin vers le répertoire de sauvegarde
     */
+    DIR *dir;
+    struct dirent *entry;
+    struct stat entry_stat;
+    char source_path[PATH_MAX], backup_path[PATH_MAX];
+    FILE *source_file, *backup_file;
+    char buffer[CHUNK_SIZE];
+    size_t bytes_read;
+
+    if (!(dir = opendir(source_dir)))
+    {
+        perror("Erreur d'ouverture du répertoire source");
+        return;
+    }
+    if (mkdir(backup_dir, 0777) == -1 && errno != EEXIST)
+    {
+        perror("Erreur de création du répertoire de sauvegarde");
+        closedir(dir);
+        return;
+    }
+    while (entry = readdir(dir))
+    {
+        if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
+            continue;
+        snprintf(source_path, sizeof(source_path), "%s/%s", source_dir, entry->d_name);
+        snprintf(backup_path, sizeof(backup_path), "%s/%s", backup_dir, entry->d_name);
+        if (stat(source_path, &entry_stat) == -1)
+        {
+            fprintf(stderr, "Erreur lors de stat : %s\n", source_path);
+            continue;
+        }
+        if (S_ISDIR(entry_stat.st_mode))
+            create_backup(source_path, backup_path);
+        else if (S_ISREG(entry_stat.st_mode))
+        {
+            source_file = fopen(source_path, "rb");
+            backup_file = fopen(backup_path, "wb");
+            if (!source_file || !backup_file)
+            {
+                perror("Erreur lors de l'ouverture des fichiers");
+                if (source_file)
+		                fclose(source_file);
+                if (backup_file)
+		                fclose(backup_file);
+                continue;
+            }
+            while ((bytes_read = fread(buffer, 1, CHUNK_SIZE, source_file)) > 0)
+                fwrite(buffer, 1, bytes_read, backup_file);
+            fclose(source_file);
+            fclose(backup_file);
+        }
+    }
+		if (closedir(dir) == -1)
+        perror("Erreur lors de la fermeture du répertoire source");
 }
 
 // Fonction permettant d'enregistrer dans fichier le tableau de chunk dédupliqué
@@ -84,12 +138,36 @@ void backup_file(const char *filename) {
     fclose(file);
 }
 
+void write_restored_file(const char *output_filename, Chunk *chunks, int chunk_count)
+{
+    FILE *output_file;
+    size_t written;
 
-
-// Fonction permettant la restauration du fichier backup via le tableau de chunk
-void write_restored_file(const char *output_filename, Chunk *chunks, int chunk_count) {
-    /*
-    */
+	if (!chunks || chunk_count <= 0)
+    {
+        fprintf(stderr, "Chunks invalides ou nombre de chunks invalide\n");
+        return;
+    }
+    output_file = fopen(output_filename, "wb");
+    if (!output_file)
+    {
+        fprintf(stderr, "Erreur lors de l'ouverture du fichier de sortie : %s\n", output_filename);
+        return;
+    }
+    for (int i = 0; i < chunk_count; ++i)
+    {
+        written = fwrite(chunks[i].data, 1, chunks[i].size, output_file);
+        if (written != chunks[i].size)
+        {
+            fprintf(stderr, "Erreur lors de l'écriture du chunk %d dans le fichier\n", i);
+            fclose(output_file);
+            return;
+        }
+    }
+    if (fclose(output_file))
+        perror("Erreur lors de la fermeture du fichier de sortie");
+    else
+        printf("Fichier restauré avec succès : %s\n", output_filename);
 }
 
 // Fonction pour restaurer une sauvegarde

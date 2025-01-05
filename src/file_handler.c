@@ -97,8 +97,34 @@ void write_log_element(log_element *elt, FILE *logfile){
     fprintf(logfile, "\n");
 }
 
-void list_files(const char *path){
-  /* Implémenter la logique pour lister les fichiers présents dans un répertoire
-  */
+void list_files(const char *path)
+{
+    DIR *dir;
+    char full_path[PATH_MAX];
+    struct dirent *entry;
+    struct stat entry_stat;
+         
+    if (!(dir = opendir(path)))
+    {
+        perror("Erreur d'ouverture du répertoire");
+        return;
+    }
+    while ((entry = readdir(dir)))
+    {
+        if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
+            continue;
+        snprintf(full_path, sizeof(full_path), "%s/%s", path, entry->d_name);
+        if (stat(full_path, &entry_stat) == -1)
+        {
+            fprintf(stderr, "Erreur lors de stat : %s\n", full_path);
+            continue;
+        }
+        if (S_ISDIR(entry_stat.st_mode))
+            list_files(full_path);
+        else if (S_ISREG(entry_stat.st_mode))
+            printf("Fichier : %s\n", full_path);
+    }
+    if (closedir(dir) == -1)
+        perror("Erreur lors de la fermeture du répertoire");
 }
 
