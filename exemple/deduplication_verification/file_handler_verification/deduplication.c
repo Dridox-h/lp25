@@ -57,19 +57,7 @@ int find_md5(Md5Entry *hash_table, unsigned char *md5) {
     *           md5 est le md5 du chunk dont on veut déterminer l'unicité
     *  @return: retourne l'index s'il trouve le md5 dans le tableau et -1 sinon
     */
-    unsigned int index = hash_md5(md5);
-    unsigned int start_index = index;
-
-    do
-    {
-        if (hash_table[index].index == -1)
-            return (-1);
-        if (!memcmp(hash_table[index].md5, md5, MD5_DIGEST_LENGTH))
-            return (hash_table[index].index);
-        index = (index + 1) % HASH_TABLE_SIZE;
-    } while (index != start_index);
-
-    return (-1);
+    
 }
 
 // Ajouter un MD5 dans la table de hachage
@@ -80,11 +68,7 @@ void add_md5(Md5Entry *hash_table, unsigned char *md5, int index) {
     }
 
     // Calcul de l'index de hachage
-    unsigned int hash = 0;
-    for (int i = 0; i < MD5_DIGEST_LENGTH; i++) {
-        hash = (hash << 5) + hash + md5[i];
-    }
-    hash = hash % HASH_TABLE_SIZE;
+    unsigned int hash = hash_md5(md5);
 
     // Créer un nouvel élément
     Md5Entry *new_entry = (Md5Entry *)malloc(sizeof(Md5Entry));
@@ -98,7 +82,7 @@ void add_md5(Md5Entry *hash_table, unsigned char *md5, int index) {
     new_entry->next = NULL;
 
     // Ajouter à la table de hachage
-    if (!hash_table[hash].next) {
+    if (hash_table[hash].next == NULL) {
         // Aucun élément à cet index, ajouter directement
         hash_table[hash] = *new_entry;
         free(new_entry);
@@ -108,7 +92,6 @@ void add_md5(Md5Entry *hash_table, unsigned char *md5, int index) {
         hash_table[hash].next = new_entry;
     }
 }
-
 
 // Fonction pour convertir un fichier non dédupliqué en tableau de chunks
 void deduplicate_file(FILE *file, Chunk *chunks, Md5Entry *hash_table){
