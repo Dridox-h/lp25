@@ -2,58 +2,7 @@
 #include <string.h>
 #include <openssl/evp.h>
 #include "file_handler.h"
-
-// Fonction pour calculer le MD5 d'un fichier
-int calculate_file_md5(const char *filename, unsigned char *md5_result) {
-    FILE *file = fopen(filename, "rb");
-    if (file == NULL) {
-        perror("Erreur d'ouverture du fichier pour calculer le MD5");
-        return -1;
-    }
-
-    EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
-    if (mdctx == NULL) {
-        perror("Erreur d'allocation du contexte MD5");
-        fclose(file);
-        return -1;
-    }
-
-    // Initialiser l'algorithme MD5
-    if (EVP_DigestInit_ex(mdctx, EVP_md5(), NULL) != 1) {
-        perror("Erreur d'initialisation du digest");
-        EVP_MD_CTX_free(mdctx);
-        fclose(file);
-        return -1;
-    }
-
-    unsigned char buffer[1024];
-    int bytes_read;
-    
-    // Lire le fichier et mettre à jour le digest
-    while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0) {
-        if (EVP_DigestUpdate(mdctx, buffer, bytes_read) != 1) {
-            perror("Erreur de mise à jour du digest");
-            EVP_MD_CTX_free(mdctx);
-            fclose(file);
-            return -1;
-        }
-    }
-
-    // Obtenir le résultat MD5
-    unsigned int md5_len;
-    if (EVP_DigestFinal_ex(mdctx, md5_result, &md5_len) != 1) {
-        perror("Erreur de finalisation du digest");
-        EVP_MD_CTX_free(mdctx);
-        fclose(file);
-        return -1;
-    }
-
-    // Libérer le contexte MD5 et fermer le fichier
-    EVP_MD_CTX_free(mdctx);
-    fclose(file);
-
-    return 0;
-}
+#include "deduplication.h"
 
 // Fonction pour tester l'écriture d'un log avec update_backup_log
 void test_update_backup_log() {
